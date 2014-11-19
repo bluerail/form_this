@@ -13,6 +13,8 @@ module FormObjects
 
 
     # Get the model name; used by form_for
+    # TODO: Right now this is often required because we don't guess names of
+    # "nested" records; improve the naming scheme and/or this function
     def self.model_name
       name = @_model || self.name.sub(/Form$/, '')
       ::ActiveModel::Name.new self, nil, name
