@@ -6,18 +6,23 @@ module FormObjects
     attr_accessor :record
 
 
-    # Set the model name
+    # Manually set the model name
     def self.model name
-      @_model = name
+      @_model_name = name
     end
 
 
     # Get the model name; used by form_for
-    # TODO: Right now this is often required because we don't guess names of
-    # "nested" records; improve the naming scheme and/or this function
+    # The convention is to use ModelNameForm, and ModelNameForm_NestedModel for
+    # nested objects
     def self.model_name
-      name = @_model || self.name.sub(/Form$/, '')
-      ::ActiveModel::Name.new self, nil, name
+      ::ActiveModel::Name.new self, nil, @_model_name || self.name.split('_').pop.sub(/Form$/, '')
+    end
+
+
+    # Use the i18n keys from activerecord
+    def self.i18n_scope
+      :activerecord
     end
 
 
