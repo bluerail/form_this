@@ -47,6 +47,15 @@ module FormObjects
     end
 
 
+    # Define multiple properties
+    #   properties :street, :number
+    #   properties :street, :number, postal_code: { type: String, validates: { presence: true } }
+    def self.properties *names, **names_with_opts
+      names.each { |n| self.property name }
+      names_with_opts.each { |k, v| self.property k, v }
+    end
+
+
     # Helper method to check if a class has this class as a base, but without
     # creating an instance of the class
     def self.has_superclass klass
