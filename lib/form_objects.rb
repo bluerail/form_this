@@ -16,7 +16,8 @@ module FormObjects
     # The convention is to use ModelNameForm, and ModelNameForm_NestedModel for
     # nested objects
     def self.model_name
-      ::ActiveModel::Name.new self, nil, @_model_name || self.name.split('_').pop.sub(/Form$/, '')
+      ::ActiveModel::Name.new self, nil,
+        @_model_name || self.name.split('_').pop.sub(/Form$/, '')
     end
 
 
@@ -41,7 +42,7 @@ module FormObjects
         define_method "#{name}_attributes=" do |params|
           # TODO: Is using the index from params as the index a good idea? Where
           # does this index come from anyway?
-          !params.map { |id, v| self.send(name)[id.to_i].validate v }.include? false
+          !params.map { |id, v| self.send(name)[id.to_i].validate v, self }.include? false
         end
       end
     end
@@ -51,7 +52,7 @@ module FormObjects
     #   properties :street, :number
     #   properties :street, :number, postal_code: { type: String, validates: { presence: true } }
     def self.properties *names, **names_with_opts
-      names.each { |n| self.property name }
+      names.each { |n| self.property n }
       names_with_opts.each { |k, v| self.property k, v }
     end
 
@@ -65,8 +66,8 @@ module FormObjects
         klass = klass.superclass
       end
     end
-    
-    
+
+
     def model_class
       Object.const_get self.class.model_name.name
     end
@@ -76,6 +77,7 @@ module FormObjects
     def initialize record
       # TODO: Make this more duck-type-y
       raise 'Must be an ActiveRecord::Base instance' unless record.is_a? ActiveRecord::Base
+
       @record = record
       self.set_defaults
       attrs = {}
@@ -104,16 +106,27 @@ module FormObjects
 
 
     # Set parameters, and check if all is valid
-    def validate params
+    def validate params, parent=nil
+      @parent = parent
       valid = true
-      params.each do |k, v|
-        # Silently skip if we don't know this attribute; this is the same
-        # behavior as strong parameters
-        # TODO: Also log this, like strong parameters does
-        next unless self.respond_to? "#{k}="
 
+      # First set all non-nested attributes; then set the nested. This way we
+      # can access the parameter from the parent from the nested record
+      #
+      # We silently skip if we don't know this attribute; this is the same
+      # behavior as strong parameters
+      # TODO: Also log this, like strong parameters does
+      params.each do |k, v|
+        next if k.ends_with? '_attributes'
+        next unless self.respond_to? "#{k}="
+        self.send "#{k}=", v
+      end
+
+      params.each do |k, v|
+        next unless k.ends_with? '_attributes'
+        next unless self.respond_to? "#{k}="
         r = self.send "#{k}=", v
-        valid = r && valid if k.ends_with? '_attributes'
+        valid = r && valid 
       end
 
       return self.valid? && valid
