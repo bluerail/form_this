@@ -134,8 +134,15 @@ module FormObjects
 
 
     # Save record & all dependent records
+    # TODO: seperate sync & save
     def save
       ActiveRecord::Base.transaction do
+        # Call save on dependent records first
+        self.attributes.each do |k, v|
+            next unless v.is_a? Enumerable
+            v.map { |obj| obj.save if obj.id.present? }
+        end
+
         attrs = {}
         self.attributes.each do |k, v|
           # Convert Form object to a AR object if required

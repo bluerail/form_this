@@ -1,0 +1,17 @@
+= semantic_form_for form do |f|
+  = f.inputs do
+    = f.input :name
+    = f.input :active
+
+  = f.semantic_fields_for :address do |address_f|
+    = address_f.inputs do
+      = address_f.input :street
+      = address_f.input :number
+
+  = f.semantic_fields_for :people do |person_f|
+    = person_f.inputs do
+      = person_f.input :name
+      = person_f.input :birthdate
+
+  = f.actions do
+    = f.submit

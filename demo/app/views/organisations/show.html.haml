@@ -1,0 +1,15 @@
+%h1 New Organisation #{@organisation.id}
+
+= link_to 'Back to index', [:organisations]
+= link_to 'Edit', [:edit, @organisation]
+
+%dl
+  %dt Name
+  %dd= @organisation.name
+  %dt Address
+  %dd= @organisation.address
+  %dt People
+  %dd
+    %ul
+      - @organisation.people.each do |person|
+        %li= person
