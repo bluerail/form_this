@@ -53,9 +53,21 @@ module FormObjects
     # Define multiple properties
     #   properties :street, :number
     #   properties :street, :number, postal_code: { type: String, validates: { presence: true } }
+    #   properties :street, number, type: String, validates: { presence: true }
     def self.properties *names, **names_with_opts
-      names.each { |n| self.property n }
-      names_with_opts.each { |k, v| self.property k, v }
+      params = {}
+      names_with_opts.each do |k, v|
+        case k.to_sym
+          when k == :type
+            params[:type] = v
+          when k == :validates
+            params[:validates] = v
+          else
+            self.property k, v
+        end
+      end
+
+      names.each { |n| self.property n, params }
     end
 
 
