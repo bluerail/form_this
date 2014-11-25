@@ -36,6 +36,15 @@ More in-depth docs
 I should write this once this gem becomes non-experimental...
 
 
+Caveats
+-------
+If you do use `form_for` with a “plain” AR instead of a Form This! object you 1.
+might get strange errors, or worse 2. get an invalid model in your database.
+
+TODO: Make this impossible/difficult; perhaps add a check to the `form_for`
+method or AR?
+
+
 Other projects
 ==============
 - [simple_form_object](https://github.com/reinteractive-open/simple_form_object)  
