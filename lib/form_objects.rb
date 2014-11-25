@@ -67,12 +67,7 @@ module FormObjects
       end
     end
 
-
-    def model_class
-      Object.const_get self.class.model_name.name
-    end
-
-
+    
     # Every form object is associated with an AR record
     def initialize record
       # TODO: Make this more duck-type-y
@@ -85,6 +80,11 @@ module FormObjects
       super attrs
 
       return self
+    end
+
+
+    def model_class
+      Object.const_get self.class.model_name.name
     end
 
 
@@ -133,46 +133,69 @@ module FormObjects
     end
 
 
-    # Save record & all dependent records
-    # TODO: seperate sync & save
-    def save
+    # Copy the data from the form class to the record; does *not* actually
+    # persist anything to the database
+    def update_record
+      # Call update_record on dependent records first
+      self.attributes.each do |k, v|
+          next unless v.is_a? Enumerable
+          v.map { |r| r.update_record if r.id.present? }
+      end
+
+      attrs = {}
+      # Convert Form object to a AR object if required
+      # TODO: This could probably be a bit cleaner
+      self.attributes.each do |k, v|
+                   # Nested record (single), existing record
+        attrs[k] = if v.is_a?(FormObjects::Base) && v.id.present?
+                      set = v.model_class.find(v.id)
+                      set.update v.attributes
+                      set
+                    # Nested record (single), new record
+                    elsif v.is_a? FormObjects::Base
+                      v.model_class.new v.attributes
+                    # Nested records (many)
+                    elsif v.is_a? Enumerable
+                      v.map do |obj|
+                        # Existing record
+                        if obj.id.present?
+                          set = obj.model_class.find(obj.id)
+                          set.update obj.attributes
+                          set
+                        # New record
+                        else
+                          obj.model_class.new obj.attributes
+                        end
+                      end
+                    # Value
+                    else
+                      v
+                    end
+      end
+
+      @record.update attrs
+    end
+
+
+    # Persist the record to the database
+    def persist
+      success = true
       ActiveRecord::Base.transaction do
-        # Call save on dependent records first
+        # Call persist on dependent records first
         self.attributes.each do |k, v|
             next unless v.is_a? Enumerable
-            v.map { |obj| obj.save if obj.id.present? }
+            v.map { |r| success = r.save && success if r.id.present? }
         end
 
-        attrs = {}
-        self.attributes.each do |k, v|
-          # Convert Form object to a AR object if required
-          # TODO: This could probably be a bit cleaner
-          attrs[k] = if v.is_a? FormObjects::Base
-                       if v.id.present?
-                          set = v.model_class.find(v.id)
-                          set.update v.attributes
-                          set
-                       else
-                          v.model_class.new v.attributes
-                       end
-                     elsif v.is_a? Enumerable
-                       v.map do |obj|
-                         if obj.id.present?
-                            set = obj.model_class.find(obj.id)
-                            set.update obj.attributes
-                            set
-                         else
-                            obj.model_class.new obj.attributes
-                         end
-                       end
-                     else
-                       v
-                     end
-        end
-
-        @record.update attrs
-        return @record.save
+        return @record.save && success
       end
+    end
+
+
+    # Call update_record & persist
+    def save
+      self.update_record
+      self.persist
     end
 
 
