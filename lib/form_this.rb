@@ -58,9 +58,9 @@ module FormThis
       params = {}
       names_with_opts.each do |k, v|
         case k.to_sym
-          when k == :type
+          when :type
             params[:type] = v
-          when k == :validates
+          when :validates
             params[:validates] = v
           else
             self.property k, v
