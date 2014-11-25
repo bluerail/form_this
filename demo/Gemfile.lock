@@ -1,7 +1,7 @@
 PATH
-  remote: /home/martin/code/gems/form_objects
+  remote: ../
   specs:
-    form_objects (0.1)
+    form_this (0.1)
       activemodel (~> 4.0)
       activerecord (~> 4.0)
       virtus (~> 1.0)
@@ -119,7 +119,7 @@ PLATFORMS
 DEPENDENCIES
   better_errors
   binding_of_caller
-  form_objects!
+  form_this!
   formtastic
   haml-rails
   rails

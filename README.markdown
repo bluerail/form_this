@@ -1,4 +1,4 @@
-Form objects outside your models.
+Form This! allows you to use form objects outside your models.
 
 This is a fairly simple gem, and a wrapper around
 [Virtus](https://github.com/solnic/virtus). It’s also **experimental**. I have

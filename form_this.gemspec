@@ -1,11 +1,11 @@
 $:.push File.expand_path('../lib', __FILE__)
 
 Gem::Specification.new do |s|
-  s.name        = 'form_objects'
+  s.name        = 'form_this'
   s.version     = '0.1'
   s.authors     = ['Martin Tournoij']
   s.email       = ['martin@lico.nl']
-  s.homepage    = 'https://github.com/bluerail/form_objects'
+  s.homepage    = 'https://github.com/bluerail/form_this'
   s.summary     = 'Form objects outside your models'
   s.description = 'Make it easy & painless to use form objects outside your models'
   s.license     = 'MIT'

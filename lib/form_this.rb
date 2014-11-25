@@ -1,6 +1,6 @@
 require 'virtus'
 
-module FormObjects
+module FormThis
   class Base
     include Virtus.model
     include ActiveModel::Model
@@ -76,7 +76,7 @@ module FormObjects
     def self.has_superclass klass
       while true
         return false unless klass.respond_to? :superclass
-        return true if klass == FormObjects::Base
+        return true if klass == FormThis::Base
         klass = klass.superclass
       end
     end
@@ -161,12 +161,12 @@ module FormObjects
       # TODO: This could probably be a bit cleaner
       self.attributes.each do |k, v|
                    # Nested record (single), existing record
-        attrs[k] = if v.is_a?(FormObjects::Base) && v.id.present?
+        attrs[k] = if v.is_a?(FormThis::Base) && v.id.present?
                       set = v.model_class.find(v.id)
                       set.update v.attributes
                       set
                     # Nested record (single), new record
-                    elsif v.is_a? FormObjects::Base
+                    elsif v.is_a? FormThis::Base
                       v.model_class.new v.attributes
                     # Nested records (many)
                     elsif v.is_a? Enumerable
