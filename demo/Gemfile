@@ -8,4 +8,4 @@ gem 'rails'
 gem 'sqlite3'
 gem 'virtus'
 
-gem 'form_objects', path: '/home/martin/code/gems/form_objects'
+gem 'form_objects', path: '../'
