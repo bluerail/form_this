@@ -1,3 +1,5 @@
+require 'virtus'
+
 module FormObjects
   class Base
     include Virtus.model
