@@ -192,7 +192,7 @@ module FormThis
 
 
     # Persist the record to the database
-    def persist
+    def persist!
       success = true
       ActiveRecord::Base.transaction do
         # Call persist on dependent records first
@@ -206,10 +206,10 @@ module FormThis
     end
 
 
-    # Call update_record & persist
+    # Call update_record & persist!
     def save
       self.update_record
-      self.persist
+      self.persist!
     end
 
 
