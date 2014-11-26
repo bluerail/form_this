@@ -126,6 +126,11 @@ module FormThis
     end
 
 
+    def new_record?
+      @record.new_record?
+    end
+
+
     # Set parameters, and check if all is valid
     def validate params, parent=nil
       @parent = parent
