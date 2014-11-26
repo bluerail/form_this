@@ -42,9 +42,16 @@ module FormThis
 
       if opts[:type].is_a? Enumerable
         define_method "#{name}_attributes=" do |params|
-          # TODO: Is using the index from params as the index a good idea? Where
-          # does this index come from anyway?
-          !params.map { |id, v| self.send(name)[id.to_i].validate v, self }.include? false
+          # TODO
+          # >> params[:contractees_attributes]
+          # => {"0"=>{"role"=>"lessor", "organisation_person_id"=>"1"}, # "3"=>{"role"=>"signee", "organisation_person"=>"1"}}
+          #
+          # Where do these keys come from (specifically, '3')?
+          #
+          # This is (probably) an *approximation* of what AR does; we need to
+          # figure out better how this works *exactly*
+          #!params.map { |id, v| self.send(name)[id.to_i].validate v, self }.include? false
+          !params.values.map.with_index { |v, id| self.send(name)[id].validate v, self }.include? false
         end
       end
     end
