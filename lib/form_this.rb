@@ -34,13 +34,25 @@ module FormThis
       attribute name, opts[:type] || String
       validates name, opts[:validates] if opts[:validates]
 
+      # Nested attributes
       if self.has_superclass opts[:type]
+        # Assign nested attributes
         define_method "#{name}_attributes=" do |params|
           self.send(name).validate params
         end
-      end
-
-      if opts[:type].is_a? Enumerable
+      # Assign has_one/belongs_to associations
+      elsif self.has_superclass opts[:type], ActiveRecord::Base
+        define_method "#{name}=" do |params|
+          if params.is_a?(ActiveRecord::Base)
+            super params
+          elsif params.to_i > 0
+            super opts[:type].find params.to_i
+          else
+            super params
+          end
+        end
+      # has_many associations
+      elsif opts[:type].is_a? Enumerable
         define_method "#{name}_attributes=" do |params|
           # TODO
           # >> params[:contractees_attributes]
@@ -80,10 +92,10 @@ module FormThis
 
     # Helper method to check if a class has this class as a base, but without
     # creating an instance of the class
-    def self.has_superclass klass
+    def self.has_superclass klass, superclass=FormThis::Base
       while true
         return false unless klass.respond_to? :superclass
-        return true if klass == FormThis::Base
+        return true if klass == superclass
         klass = klass.superclass
       end
     end
