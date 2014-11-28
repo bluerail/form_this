@@ -186,9 +186,7 @@ module FormThis
       self.attributes.each do |k, v|
                    # Nested record (single), existing record
         attrs[k] = if v.is_a?(FormThis::Base) && v.id.present?
-                      set = v.model_class.find(v.id)
-                      set.update v.attributes
-                      set
+                      v.model_class.find(v.id).tap { |set| set.update(v.attributes) }
                     # Nested record (single), new record
                     elsif v.is_a? FormThis::Base
                       v.model_class.new v.attributes
@@ -197,9 +195,7 @@ module FormThis
                       v.map do |obj|
                         # Existing record
                         if obj.id.present?
-                          set = obj.model_class.find(obj.id)
-                          set.update obj.attributes
-                          set
+                          obj.model_class.find(obj.id).tap { |set| set.update(obj.attributes) }
                         # New record
                         else
                           obj.model_class.new obj.attributes
