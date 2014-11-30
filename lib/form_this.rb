@@ -355,37 +355,37 @@ module FormThis
 end
 
 
-module ActionView
-  module Helpers
-    module FormHelper
-      # If you're using +FormThis+, you never want to pass an
-      # +ActiveRecord+ instance to +form_for+, doing so can lead to strange
-      # behaviour, strange errors, and -worst of all- invalid data in your
-      # database.
-      # This "protects" +form_for+ and will raise an +Exception+ if we pass in
-      # anything other than a +FormThis::Base+ instance.
-      #
-      # This can be disabled by setting +FormThis.protect_form_for+ to +false+.
-      alias __original_form_for__ form_for
-      def form_for record, options = {}, &block
-        if FormThis.protect_form_for
-          case record
-            when String, Symbol
-              object = record
-            else
-              object = record.is_a?(Array) ? record.last : record
+if defined? ActionView
+  module ActionView
+    module Helpers
+      module FormHelper
+        # If you're using +FormThis+, you never want to pass an
+        # +ActiveRecord+ instance to +form_for+, doing so can lead to strange
+        # behaviour, strange errors, and -worst of all- invalid data in your
+        # database.
+        # This "protects" +form_for+ and will raise an +Exception+ if we pass in
+        # anything other than a +FormThis::Base+ instance.
+        #
+        # This can be disabled by setting +FormThis.protect_form_for+ to +false+.
+        alias __original_form_for__ form_for
+        def form_for record, options = {}, &block
+          if FormThis.protect_form_for
+            case record
+              when String, Symbol
+                object = record
+              else
+                object = record.is_a?(Array) ? record.last : record
+            end
+
+            if !object.is_a?(FormThis::Base)
+              raise 'You need to pass a FormThis::Base object to form_for. ' +
+                'You see this warning because FormThis.protect_form_for is enabled.'
+            end
           end
 
-          if !object.is_a?(FormThis::Base)
-            raise 'You need to pass a FormThis::Base object to form_for. ' +
-              'You see this warning because FormThis.protect_form_for is enabled.'
-          end
+          __original_form_for__ record, options, &block
         end
-
-        __original_form_for__ record, options, &block
       end
     end
   end
 end
-
-
