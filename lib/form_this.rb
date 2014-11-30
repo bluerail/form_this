@@ -132,7 +132,6 @@ module FormThis
     end
 
 
-    # TODO: Perhaps we also need to check for dependent records here?
     def persisted?
       @record.persisted?
     end
