@@ -1,6 +1,5 @@
 [![Build Status](https://travis-ci.org/bluerail/form_this.svg)](https://travis-ci.org/bluerail/form_this)
 [![Dependency Status](https://gemnasium.com/bluerail/form_this.svg)](https://gemnasium.com/bluerail/form_this)
-[![Code Climate](https://codeclimate.com/github/bluerail/form_this/badges/gpa.svg)](https://codeclimate.com/github/bluerail/form_this)
 [![Inline docs](http://inch-ci.org/github/bluerail/form_this.svg?branch=master)](http://inch-ci.org/github/bluerail/form_this)
 
 **Form This!** allows you to use form objects outside your models.
