@@ -77,59 +77,12 @@ module FormThis
         define_method "#{name}_attributes=" do |params|
           self.send(name).validate params
         end
-      # has_on or /belongs_to, and *don't* allow attributes
+      # has_one or belongs_to, and *don't* allow attributes
       elsif self.is_model? opts[:type]
-        define_method "#{name}=" do |params|
-          if self.is_model? params
-            super params
-          elsif params.to_i > 0
-            super opts[:type].find params.to_i
-          elsif params == ''
-            super nil
-          else
-            super params
-          end
-        end
+        self._property_has_one name, opts[:type]
       # has_many associations
       elsif opts[:type].is_a? Enumerable
-        # Allow attributes
-        if self.is_form_this? opts[:type].first
-          define_method "#{name}_attributes=" do |params|
-            # TODO: I'm not sure if the logic here is exactly the same as what AR
-            # does; for example, we get a params hash which might look like:
-            # {
-            #   "0" => {"name"=>"test"},
-            #   "3" => {"name"=>"another test"}
-            # }
-            #
-            # Where do these keys come from (specifically, '3')?
-            existing = self.send name
-            !params.values.map.with_index do |v, id|
-              if id >= existing.length
-                #self.albums << ArtistForm_Album.new(Album.new).tap { |a| a.validate v, self }
-                self.send(name) << opts[:type].first.new(opts[:type].first.model_class.new).tap {|a| a.validate v, self }
-              else
-                existing[id].validate v, self
-              end
-            end.include? false
-          end
-        # Don't allow attributes
-        elsif self.is_model? opts[:type].first
-          define_method "#{name}_attributes=" do |params|
-            !params.values.map.with_index do |v, id|
-              if self.is_model? v
-                super v
-              elsif v.to_i > 0
-                super opts[:type].find v.to_i
-              else
-                super v
-              end
-            end.include? false
-          end
-        # Does assigning an Array[String] ever make sense?
-        else
-          raise 'You need to use FormThis::Base or ActiveRecord::Base'
-        end
+        self._property_has_many name, opts[:type]
       end
     end
 
@@ -351,6 +304,72 @@ module FormThis
     def save!
       self.save || raise(RecordNotSaved)
     end
+
+
+    # Try to find an AR from +record+, which may be an AR instance, the record
+    # id, or nil; we expect the +type+ to be an AR class.
+    def find_record record, type
+      if record == ''
+        nil
+      elsif record.to_i > 0
+        type.find record.to_i
+      elsif self.is_model? record
+        record
+      else
+        record
+      end
+    end
+
+    private
+      
+      # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
+      def self._property_has_one name, type
+        define_method "#{name}=" do |record|
+          super self.find_record(record, type)
+        end
+      end
+
+
+      # Helper for +self.property+, +has_many+ associations.
+      def self._property_has_many name, type
+        # Allow attributes
+        if self.is_form_this? type.first
+          self._property_has_many_with_attributes name, type
+        # Don't allow attributes
+        elsif self.is_model? type.first
+          define_method "#{name}_attributes=" do |params|
+            !params.values.map.with_index do |v, id|
+              super self.find_record(v, type)
+            end.include? false
+          end
+        # Does assigning an Array[String] ever make sense?
+        else
+          raise 'You need to use FormThis::Base or ActiveRecord::Base'
+        end
+      end
+
+
+      # Helper for +self.property+, +has_many+ associations, with attributes.
+      def self._property_has_many_with_attributes name, type
+        define_method "#{name}_attributes=" do |params|
+          # TODO: I'm not sure if the logic here is exactly the same as what AR
+          # does; for example, we get a params hash which might look like:
+          # {
+          #   "0" => {"name"=>"test"},
+          #   "3" => {"name"=>"another test"}
+          # }
+          #
+          # Where do these keys come from (specifically, '3')?
+          existing = self.send name
+          !params.values.map.with_index do |v, id|
+            if id >= existing.length
+              self.send(name) << type.first.new(type.first.model_class.new).tap { |a| a.validate v, self }
+            else
+              existing[id].validate v, self
+            end
+          end.include? false
+        end
+      end
   end
 end
 
