@@ -1,0 +1,15 @@
+= f.inputs class: 'row album-form' do
+  .col-xs-12
+    .row
+      .col-md-3= f.input :name
+      .col-md-2= f.input :genre#, collection: Genre.all
+      .col-md-2= f.input :release_date
+      .col-md-1= f.input :rating
+      .col-md-1= link_to 'Remove', '#', class: 'remove-row btn btn-danger'
+
+    %h3 Tracks
+    = f.semantic_fields_for :tracks do |track_f|
+      .row
+        .col-md-1= track_f.input :trackno
+        .col-md-4= track_f.input :name
+

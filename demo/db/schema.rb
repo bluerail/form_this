@@ -13,26 +13,32 @@
 
 ActiveRecord::Schema.define(version: 20141119083744) do
 
-  create_table "addresses", force: true do |t|
-    t.string   "street"
-    t.integer  "number"
-    t.integer  "person_id"
-    t.integer  "organisation_id"
+  create_table "albums", force: true do |t|
+    t.string   "name"
+    t.date     "release_date"
+    t.integer  "rating"
+    t.integer  "genre_id"
+    t.integer  "artist_id"
     t.datetime "created_at"
     t.datetime "updated_at"
   end
 
-  create_table "organisations", force: true do |t|
+  create_table "artists", force: true do |t|
     t.string   "name"
-    t.boolean  "active"
     t.datetime "created_at"
     t.datetime "updated_at"
   end
 
-  create_table "people", force: true do |t|
+  create_table "genres", force: true do |t|
     t.string   "name"
-    t.date     "birthdate"
-    t.integer  "organisation_id"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
+  create_table "tracks", force: true do |t|
+    t.string   "name"
+    t.integer  "trackno"
+    t.integer  "album_id"
     t.datetime "created_at"
     t.datetime "updated_at"
   end

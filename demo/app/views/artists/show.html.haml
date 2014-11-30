@@ -1,0 +1,30 @@
+%h1 Artist ‘#{@artist}’
+= link_to 'Back to index', [:artists], class: 'btn btn-default'
+= link_to 'Edit', [:edit, @artist], class: 'btn btn-default'
+%hr
+
+%dl.dl-horizontal
+  %dt Name
+  %dd= @artist.name
+
+%h2 Albums
+- @artist.albums.each do |album|
+  %dl.dl-horizontal
+    %dt Name
+    %dd= album.name
+
+    %dt Genre
+    %dd= album.genre.try(:name) || '-'
+
+    %dt Release date
+    %dd= album.release_date || '-'
+
+    %dt Rating
+    %dd= album.rating || '0'
+
+    %dt Tracks
+    %dd
+      = album.tracks.length
+      %ul
+        - album.tracks.each do |track|
+          %li #{track.trackno}. #{track.name}

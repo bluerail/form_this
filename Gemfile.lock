@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    form_objects (0.1)
+    form_this (0.1)
       activemodel (~> 4.0)
       activerecord (~> 4.0)
       virtus (~> 1.0)
@@ -87,5 +87,5 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  form_objects!
+  form_this!
   rspec-rails (~> 3.0)

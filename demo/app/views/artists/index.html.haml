@@ -1,0 +1,9 @@
+%h1 Artists
+= link_to 'Make new', [:new, :artist], class: 'btn btn-default'
+%hr
+
+%ul
+  - @artists.each do |artist|
+    %li
+      = link_to "#{artist.name} (#{artist.albums.length} albums)", artist
+      = link_to 'Add album', [:add_album, artist], class: 'btn btn-default btn-xs'

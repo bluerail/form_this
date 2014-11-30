@@ -1,0 +1,12 @@
+= semantic_form_for form do |f|
+  = f.inputs class: 'row' do
+    .col-md-6= f.input :name
+
+  .row
+    %h2.col-md-12 Albums
+  = f.semantic_fields_for :albums do |album_f|
+    = render partial: 'album_form', locals: { f: album_f }
+  .row
+    .col-md-8.col.text-right= link_to 'Add album', '#', class: 'add-row btn btn-default'
+
+  = f.submit class: 'btn btn-primary'
