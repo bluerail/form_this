@@ -1,8 +1,13 @@
+[![Build Status](https://travis-ci.org/bluerail/form_this.svg)](https://travis-ci.org/bluerail/form_this)
+[![Dependency Status](https://gemnasium.com/bluerail/form_this.svg)](https://gemnasium.com/bluerail/form_this)
+[![Code Climate](https://codeclimate.com/github/bluerail/form_this/badges/gpa.svg)](https://codeclimate.com/github/bluerail/form_this)
+[![Inline docs](http://inch-ci.org/github/bluerail/form_this.svg?branch=master)](http://inch-ci.org/github/bluerail/form_this)
+
 **Form This!** allows you to use form objects outside your models.
 
 This is a fairly simple gem, and a wrapper around
 [Virtus](https://github.com/solnic/virtus). It’s also **experimental**. I have
-**not** tested this with Rails 3.
+**not** tested this with Rails 3, and you will need Ruby 2.0 or newer.
 
 
 Goals
@@ -107,16 +112,8 @@ our form object, so using it would be redundant.
 
 Demo app
 --------
-There is a simple rails app for demonstration & testing purposes in the `demo/`
-directory; this is a larger example of the above. You can start it with:
-
-    cd demo
-    bundle install --path vendor/bundle
-    bundle exec rake db:migrate
-    bundle exec rails server
-
-And then go to [http://localhost:3000](http://localhost:3000). The interesting
-files to look at are in [`app/forms/`](demo/app/forms/).
+There is a simple rails app for demonstration & testing purposes at
+[form_this_demmo](https://github.com/bluerail/form_this_demo).
 
 
 More in-depth docs

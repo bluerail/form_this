@@ -1,8 +1,4 @@
 *.gem
 .bundle/
-log/*.log
-demo/log/*.log
-demo/db/*
 pkg/
 vendor/
-demo/tmp/
