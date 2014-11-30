@@ -269,14 +269,14 @@ module FormThis
       # First set all non-nested attributes; then set the nested. This way we
       # can access the parameter from the parent from the nested record
       params.each do |k, v|
-        next if k.ends_with? '_attributes'
+        next if k.to_s.end_with? '_attributes'
         next unless self.respond_to? "#{k}="
         self.send "#{k}=", v
       end
 
       # Set nested records
       params.each do |k, v|
-        next unless k.ends_with? '_attributes'
+        next unless k.to_s.end_with? '_attributes'
         next unless self.respond_to? "#{k}="
         r = self.send "#{k}=", v
         valid = r && valid 

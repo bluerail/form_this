@@ -10,10 +10,11 @@ require 'virtus'
 
 Dir["#{File.dirname(__FILE__)}/../lib/**/*.rb"].sort.each { |f| require f }
 
+# Shuts up some warnings
+I18n.enforce_available_locales = false
+
 module FormThisSpecHelper
   @@n = 0
-  #class TestForm < FormThis::Base
-  #end
 
   class TestRecord
     include ActiveModel::Model
@@ -34,14 +35,14 @@ module FormThisSpecHelper
   end
 
 
-  def make_form ev, *props
+  def make_form *props, **opts
     @@n += 1
 
     eval("class TestForm#{@@n} < FormThis::Base
-      #{ev}
+      #{opts[:eval] || ''}
     end")
     klass = Object.const_get "FormThisSpecHelper::TestForm#{@@n}"
-    klass.properties(*props)
+    klass.properties(*props, **opts)
     return klass.new TestRecord.new
   end
 end
