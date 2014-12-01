@@ -117,13 +117,15 @@ module FormThis
     # Check if +klass+ inherits from +FormThis::Base+, but without creating an
     # instance of the class
     def self.is_form_this? klass
+      return klass.is_a? FormThis::Base unless klass.is_a? Class
+
       while true
         return false unless klass.respond_to? :superclass
         return true if klass == FormThis::Base
         klass = klass.superclass
       end
     end
-    def is_form_this? klass; self.class.is_form_this klass end
+    def is_form_this? klass; self.class.is_form_this? klass end
 
 
     # Check if +klass+ extends +ActiveModel::Naming+
@@ -138,7 +140,7 @@ module FormThis
     def self.is_nested? klass
       klass.is_a? Array
     end
-    def is_nested? klass; self.is_nested? klass end
+    def is_nested? klass; self.class.is_nested? klass end
 
 
     # Get the model class of the record
@@ -258,9 +260,9 @@ module FormThis
     # of +ActiveRecord+.
     def to_h
       convert_form_object = -> (form_object) do
-        if form_object.is_a?(FormThis::Base) && form_object.id.present?
+        if self.is_form_this?(form_object) && form_object.id.present?
           form_object.model_class.find(form_object.id).tap { |set| set.update form_object.to_h }
-        elsif form_object.is_a? FormThis::Base
+        elsif self.is_form_this?(form_object)
           form_object.model_class.new form_object.to_h
         elsif self.is_nested? form_object
           form_object.map { |obj| convert_form_object.call obj }
@@ -268,7 +270,7 @@ module FormThis
       end
 
       self.attributes.inject({}) do |acc, (k, v)|
-        acc[k] = self.is_form_object?(v) || self.is_nested?(v) ?
+        acc[k] = self.is_form_this?(v) || self.is_nested?(v) ?
           convert_form_object.call(v) : 
           v
         next acc
@@ -310,10 +312,10 @@ module FormThis
     def find_record record, type
       if record == ''
         nil
-      elsif record.to_i > 0
-        type.find record.to_i
       elsif self.is_model? record
         record
+      elsif record.respond_to?(:to_i) && record.to_i > 0
+        type.find record.to_i
       else
         record
       end
@@ -396,7 +398,7 @@ if defined? ActionView
                 object = record.is_a?(Array) ? record.last : record
             end
 
-            if !options[:skip_protection] && !object.is_a?(FormThis::Base)
+            if !options[:skip_protection] && !FormThis::Base.is_form_this?(object)
               raise 'You need to pass a FormThis::Base object to form_for. ' +
                 'You see this warning because FormThis.protect_form_for is enabled.'
             end
