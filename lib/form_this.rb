@@ -81,7 +81,7 @@ module FormThis
       elsif self.is_model? opts[:type]
         self._property_has_one name, opts[:type]
       # has_many associations
-      elsif opts[:type].is_a? Enumerable
+      elsif self.is_nested? opts[:type]
         self._property_has_many name, opts[:type]
       end
     end
@@ -123,29 +123,34 @@ module FormThis
         klass = klass.superclass
       end
     end
+    def is_form_this? klass; self.class.is_form_this klass end
 
 
     # Check if +klass+ extends +ActiveModel::Naming+
+    # TODO: We might want to make this more ducktype-y
     def self.is_model? klass
       (klass.is_a?(Class) ? klass : klass.class).singleton_class.included_modules.include? ActiveModel::Naming
     end
+    def is_model? klass; self.class.is_model? klass end
 
-
-    def is_model? klass
-      self.class.is_model? klass
+    
+    # Check if +klass+ is a nested record
+    def self.is_nested? klass
+      klass.is_a? Array
     end
+    def is_nested? klass; self.is_nested? klass end
 
 
     # Get the model class of the record
     def self.model_class
       Object.const_get self.model_name.name
     end
+    def model_class; self.class.model_class end
 
 
     # We always have to start with an ActiveRecord::Base instance; we copy the
     # attributes from this AR instance to the form object
     def initialize record
-      # TODO: Make this more duck-type-y
       raise 'Must be an ActiveModel::Naming instance' unless self.is_model? record
 
       @record = record
@@ -155,12 +160,6 @@ module FormThis
       super attrs
 
       return self
-    end
-
-
-    # Get the model class of the record
-    def model_class
-      self.class.model_class
     end
 
 
@@ -263,13 +262,13 @@ module FormThis
           form_object.model_class.find(form_object.id).tap { |set| set.update form_object.to_h }
         elsif form_object.is_a? FormThis::Base
           form_object.model_class.new form_object.to_h
-        elsif form_object.is_a? Enumerable
+        elsif self.is_nested? form_object
           form_object.map { |obj| convert_form_object.call obj }
         end
       end
 
       self.attributes.inject({}) do |acc, (k, v)|
-        acc[k] = v.is_a?(FormThis::Base) || v.is_a?(Enumerable) ?
+        acc[k] = self.is_form_object?(v) || self.is_nested?(v) ?
           convert_form_object.call(v) : 
           v
         next acc
@@ -284,8 +283,8 @@ module FormThis
       ActiveRecord::Base.transaction do
         # Call persist on nested records first
         self.attributes.each do |k, v|
-            next unless v.is_a? Enumerable
-            v.map { |r| success = r.save && success if r.id.present? }
+          next unless self.is_nested? v
+          v.map { |r| success = r.save && success if r.id.present? }
         end
 
         return @record.save && success
@@ -320,8 +319,9 @@ module FormThis
       end
     end
 
+
     private
-      
+
       # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
       def self._property_has_one name, type
         define_method "#{name}=" do |record|
@@ -396,7 +396,7 @@ if defined? ActionView
                 object = record.is_a?(Array) ? record.last : record
             end
 
-            if !object.is_a?(FormThis::Base)
+            if !options[:skip_protection] && !object.is_a?(FormThis::Base)
               raise 'You need to pass a FormThis::Base object to form_for. ' +
                 'You see this warning because FormThis.protect_form_for is enabled.'
             end
