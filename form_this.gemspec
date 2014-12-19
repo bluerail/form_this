@@ -14,8 +14,9 @@ Gem::Specification.new do |s|
   s.test_files = Dir['spec/**/*']
 
   s.required_ruby_version = '>= 2.0'
-  s.add_dependency 'activerecord', '~> 4.0'
   s.add_dependency 'activemodel', '~> 4.0'
+  s.add_dependency 'activerecord', '~> 4.0'
+  s.add_dependency 'activesupport', '~> 4.0'
   s.add_dependency 'virtus', '~> 1.0'
   s.add_development_dependency 'rspec-rails', '~> 3.0'
 end

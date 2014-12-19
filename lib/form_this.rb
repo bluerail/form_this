@@ -2,7 +2,10 @@ require 'virtus'
 
 module FormThis
   mattr_accessor :protect_form_for
+  mattr_accessor :foreign_key_aliases
   @@protect_form_for = true
+  @@foreign_key_aliases = true
+
 
   class Base
     include Virtus.model
@@ -15,7 +18,8 @@ module FormThis
 
     # Manually set the model name, normally this is inferred from the class name
     # The convention is to use +ModelNameForm+, and +ModelNameForm_NestedModel+
-    # for nested records.
+    # for nested forms that are used only with this form (you can use any form
+    # class as a nested form).
     def self.model name
       @_model_name = name.to_s
     end
@@ -31,14 +35,7 @@ module FormThis
     # Call +@record.reflect_on_association+; this allows Formtastic to populate
     # select fields for associations
     def self.reflect_on_association assoc
-      refl = Object.const_get(self.model_name.name).reflect_on_association assoc
-      if refl
-        # Formtastic uses the name of the foreign key, which usually won't be
-        # the same name as what we use in a form object
-        define_method(refl.foreign_key) { self.send(assoc).try :id }
-        define_method("#{refl.foreign_key}=") { |v| self.send "#{assoc}=", v }
-      end
-      return refl
+      Object.const_get(self.model_name.name).reflect_on_association assoc
     end
 
 
@@ -80,6 +77,16 @@ module FormThis
       # has_one or belongs_to, and *don't* allow attributes
       elsif self.is_model? opts[:type]
         self._property_has_one name, opts[:type]
+
+        # Formtastic uses the name of the foreign key, which usually won't be
+        # the same name as what we use in a form object
+        if FormThis.foreign_key_aliases
+          refl = self.reflect_on_association name
+          if refl
+            define_method(refl.foreign_key) { self.send(name).try :id }
+            define_method("#{refl.foreign_key}=") { |v| self.send "#{name}=", v }
+          end
+        end
       # has_many associations
       elsif self.is_nested? opts[:type]
         self._property_has_many name, opts[:type]
@@ -135,10 +142,10 @@ module FormThis
     end
     def is_model? klass; self.class.is_model? klass end
 
-    
-    # Check if +klass+ is a nested record
+
+    # Check if +klass+ is a nested form
     def self.is_nested? klass
-      klass.is_a? Array
+      klass.is_a?(Array) && self.is_form_this?(klass[0])
     end
     def is_nested? klass; self.class.is_nested? klass end
 
@@ -153,30 +160,25 @@ module FormThis
     # We always have to start with an ActiveRecord::Base instance; we copy the
     # attributes from this AR instance to the form object
     def initialize record
-      raise 'Must be an ActiveModel::Naming instance' unless self.is_model? record
-
+      raise "You must initialize FormThis::Base with an ActiveModel::Naming instance, but you passed a `#{record.class}' (`#{record}') to #{self.class}" unless self.is_model? record
+      
       @record = record
-      self.set_defaults
       attrs = {}
+      # XXX
+      self.set_defaults
       self.attributes.each { |k, v| attrs[k] = @record.send k }
+
       super attrs
 
       return self
     end
+    def set_defaults; end
 
 
     # You can override this in your class to set defaults on +@record+; it is
     # executed after +@record+ is set, and before the +@record+ attributes are
     # copies to the form class.
     #
-    # TODO: First off, we want to be able to use:
-    #   property :foo, default: 'bar'
-    # TODO: Also, we want to use rails-y callbacks, ie.:
-    #   before :initialize, -> { ... }
-    #   after :initialize, -> { ... }
-    def set_defaults
-    end
-
 
     # Call +@record.id+; we need this for +form_for+.
     def id
@@ -220,39 +222,56 @@ module FormThis
       @parent = _parent
       valid = true
 
-      # First set all non-nested attributes; then set the nested. This way we
-      # can access the parameter from the parent from the nested record
       params.each do |k, v|
         next if k.to_s.end_with? '_attributes'
         next unless self.respond_to? "#{k}="
         self.send "#{k}=", v
       end
 
+      # First set all non-nested attributes; then set the nested. This way we
+      # can access the parameter from the parent from the nested record
+
       # Set nested records
       params.each do |k, v|
         next unless k.to_s.end_with? '_attributes'
         next unless self.respond_to? "#{k}="
+
+        # k is the following function:
+        #
+        # define_method "#{name}_attributes=" do |params|
+        #   self.send(name).validate params
+        # end
         r = self.send "#{k}=", v
-        valid = r && valid 
+        valid = r && valid
       end
 
       return self.valid? && valid
     end
 
 
+    # Execute the code in +&block+ for +self+ and all nested forms.
+    def execute_for_all_forms including_self=true, &block
+      block.call self if including_self
+      self.attributes.each do |k, v|
+        if self.is_form_this? v
+          block.call v
+          v.execute_for_all_forms(true, &block)
+        elsif self.is_nested? v
+          v.each { |n| n.execute_for_all_forms(true, &block) }
+        end
+      end
+    end
+
+
     # Copy the data from the form class to the record; this does *not* persist
     # anything to the database, that is done by +persist!+.
     def update_record
-      # Call update_record on nested records first
-      # TODO: I forgot why I added this... If it's required, we need to do this
-      # work for more than 1 level of nesting; I also don't know why only on
-      # has_many nestings, and not has_one
-      #self.attributes.each do |k, v|
-      #    next unless v.is_a? Enumerable
-      #    v.map { |r| r.update_record if r.id.present? }
-      #end
-
-      @record.update self.to_h
+      if @parent.nil?
+        self.execute_for_all_forms(false) { |f| f.update_record }
+        @record.assign_attributes self.to_h
+      else
+        @record.assign_attributes self.to_h
+      end
     end
 
 
@@ -260,19 +279,28 @@ module FormThis
     # of +ActiveRecord+.
     def to_h
       convert_form_object = -> (form_object) do
+        # FormThis with id
         if self.is_form_this?(form_object) && form_object.id.present?
           form_object.model_class.find(form_object.id).tap { |set| set.update form_object.to_h }
+        # FormThis w/o id
         elsif self.is_form_this?(form_object)
-          form_object.model_class.new form_object.to_h
+          #raise
+          form_object.model_class.new form_object.to_h # XXX
+        # Array[FormThis]
         elsif self.is_nested? form_object
           form_object.map { |obj| convert_form_object.call obj }
         end
       end
 
       self.attributes.inject({}) do |acc, (k, v)|
-        acc[k] = self.is_form_this?(v) || self.is_nested?(v) ?
-          convert_form_object.call(v) : 
-          v
+        #if self.is_form_this?(v) || self.is_nested?(v)
+        if self.is_nested? v
+          acc[k] = convert_form_object.call v
+        elsif self.is_form_this? v
+          # Do nothing
+        else
+          acc[k] = v
+        end
         next acc
       end
     end
@@ -282,15 +310,16 @@ module FormThis
     # +update_record+ before calling this.
     def persist!
       success = true
-      ActiveRecord::Base.transaction do
-        # Call persist on nested records first
-        self.attributes.each do |k, v|
-          next unless self.is_nested? v
-          v.map { |r| success = r.save && success if r.id.present? }
+      if @parent.nil?
+        @record.class.transaction do
+          self.execute_for_all_forms(false) { |f| f.persist! && success }
+          success = @record.save && success
         end
-
-        return @record.save && success
+      else
+          success = @record.save && success
       end
+
+      return success
     end
 
 
@@ -298,12 +327,6 @@ module FormThis
     def save
       self.update_record
       self.persist!
-    end
-
-
-    # Call +save+, and raise a +RecordNotSaved+ exception on failure.
-    def save!
-      self.save || raise(RecordNotSaved)
     end
 
 
@@ -410,3 +433,5 @@ if defined? ActionView
     end
   end
 end
+
+# vim:expandtab:ts=2:sts=2:sw=2

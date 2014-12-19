@@ -8,50 +8,43 @@ This is a fairly simple gem, and a wrapper around
 [Virtus](https://github.com/solnic/virtus). It’s also **experimental**. I have
 **not** tested this with Rails 3, and you will need Ruby 2.0 or newer.
 
+Why?
+====
+
+My chief gripe with the way ActiveRecord does things is that it quickly leads to
+a heavy dose of spaghetti code when your forms get more complicated.
+
+Your validation code may be spread out of 3, 4, or more models; to tie it all
+together, you also need some code in your controller, part of which may be
+shared, so that’s a concern for your controller and/or model.  
+It becomes easy to lose track of what-the-hell is going on.
+
+With *Form This!*, all your validation code sits in a ‘form object’, your model
+will just take care of interfacing with the database.
+
 
 Goals
-=====
+-----
 1. Form objects should work declaratively; but make it easy to override methods
    (like `save`) & include your custom logic.
-1. Make it very easy to include nested record (like Rail's
+1. Make it very easy to include nested record (like Rail’s
    `accepts_nested_attributes_for`; except better).
 1. As little as possible ‘magic’; keep it simple.
 1. Form objects work with `form_for`, `semantic_form_for`, and other
    (compatible) form builders.
+1. Easy & fast to use for small projects and forms, but scale well to large
+   projects & forms.
 
 
-What it looks like
-==================
+Gettings started
+================
 
-`app/models/artist.rb`
+Basic workflow
+--------------
+It should usually be fairly easy replace a ‘normal’ Rails application with *Form
+This!*; the basic workflow looks like:
 
-    class Artist < ActiveRecord::Base
-      has_many :albums
-    end
-
-`app/models/album.rb`
-
-    class Album < ActiveRecord::Base
-      belongs_to :artist
-    end
-
-`app/forms/artist_form.rb`
-
-    class ArtistForm < FormThis::Base
-      property :name, validates: { presence: true }
-      property :albums, type: Array[AlbumForm]
-
-      # Make sure there is at least one album so that the form for this gets built
-      def set_defaults
-        @record.albums.build if @record.albums.blank?
-      end
-    end
-
-`app/forms/album_form.rb`
-
-    class AlbumForm < FormThis::Base
-      property :name, validates: { presence: true }
-    end
+TODO
 
 You create a new `FormThis` by passing something that looks like an
 `ActiveModel` (usually an `ActiveRecord::Base` instance, but this is not
@@ -64,7 +57,46 @@ valid. Note that nothing is done with the record yet.
 You can then `save` to copy the attributes to the underlying record, and persist
 it to the database.
 
-In a controller, it looks like:
+In your views, nothing changes, except that you now use `@form` with `form_for`:
+
+Note that I’m not using Rail’s strong parameters here. They’re mot longer
+required, since we already explicitly define which attributes may be assigned in
+our form object, so using it would be redundant.
+
+
+What it actually looks like
+---------------------------
+**`app/models/artist.rb`**
+
+    class Artist < ActiveRecord::Base
+      has_many :albums
+    end
+
+**`app/models/album.rb`**
+
+    class Album < ActiveRecord::Base
+      belongs_to :artist
+    end
+
+**`app/forms/artist_form.rb`**
+
+    class ArtistForm < FormThis::Base
+      property :name, validates: { presence: true }
+      property :albums, type: Array[AlbumForm]
+
+      # Make sure there is at least one album so that the form for this gets built
+      def set_defaults
+        @record.albums.build if @record.albums.blank?
+      end
+    end
+
+**`app/forms/album_form.rb`**
+
+    class AlbumForm < FormThis::Base
+      property :name, validates: { presence: true }
+    end
+
+**`app/controller/artists_controller`**
 
     class ArtistsController
       def new
@@ -95,7 +127,7 @@ In a controller, it looks like:
     end
 
 
-In your views, nothing changes, except that you now use `@form` with `form_for`:
+**`app/views/artists/news.html.erb`**
 
     <%= form_for @form do |f| %>
       <% = f.input do %>
@@ -104,20 +136,15 @@ In your views, nothing changes, except that you now use `@form` with `form_for`:
     <% end %>
 
 
-Note that I’m not using Rail’s strong parameters here. They’re mot longer
-required, since we already explicitly define which attributes may be assigned in
-our form object, so using it would be redundant.
+As you see, it’s very similar to a ‘normal’ rails application; you just use
+swap `@record` with `@form` in a few places, and put your validations in a *Form
+This!* instead of a model.
 
 
 Demo app
 --------
 There is a simple rails app for demonstration & testing purposes at
-[form_this_demmo](https://github.com/bluerail/form_this_demo).
-
-
-More in-depth docs
-==================
-I should write this once this gem becomes non-experimental...
+[form_this_demo](https://github.com/bluerail/form_this_demo).
 
 
 Options
@@ -126,20 +153,26 @@ Options
   If you're using `FormThis`, you never want to pass an `ActiveRecord` instance
   to `form_for`, doing so can lead to strange behaviour, even stranger errors,
   and -worst of all- invalid records in your database (since validations are now
-  done by Form This!, and not your models).
+  done by *Form This!*, and not your models).
 
   This monkeypatches `form_for` to protect you from this; an `Exception` will be
   raised if anything other than a `FormThis::Base` instance is passed. This will
   also work for form builders that use `form_for` internally (such as
   Formtastic).
 
-  This is enabled by default, you can disable it if you don’t want protection or
-  monkey patching is against the tenants of your faith, but this is not
-  recommended.
+  This is enabled by default, but you can pass `disable_protection` to the
+  `form_for` call to disable. You can also disable it globally if you don’t want
+  protection or monkey patching is against the tenants of your faith, but this
+  is not recommended.
+
+- `FormThis.foreign_key_aliases`  
+  If you use a model as a type, we also try to make aliases for the foreign key
+  (if any). This is required for Formtastic to work properly. If is enabled by
+  default.
 
 
-Other projects
-==============
+Similar projects
+================
 - [reform](https://github.com/apotonick/reform)  
   Inspiration for this gem; IMHO reform is too large & complicated, and adds too
   much abstraction (‘magic’), while my whole point was to *reduce* the amount of
