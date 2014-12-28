@@ -164,11 +164,15 @@ module FormThis
       
       @record = record
       attrs = {}
-      # XXX
+      # TODO: Make it a callback
       self.set_defaults
-      self.attributes.each { |k, v| attrs[k] = @record.send k }
 
-      super attrs
+      # Make sure we never modify anything in the DB here
+      @record.transaction do
+        self.attributes.each { |k, v| attrs[k] = @record.send k }
+        super attrs
+        raise ActiveRecord::Rollback
+      end
 
       return self
     end
@@ -311,7 +315,7 @@ module FormThis
     def persist!
       success = true
       if @parent.nil?
-        @record.class.transaction do
+        @record.transaction do
           self.execute_for_all_forms(false) { |f| f.persist! && success }
           success = @record.save && success
         end
