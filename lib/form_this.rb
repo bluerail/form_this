@@ -87,9 +87,17 @@ module FormThis
             define_method("#{refl.foreign_key}=") { |v| self.send "#{name}=", v }
           end
         end
-      # has_many associations
+      # has_many, and allow attributes
       elsif self.is_nested? opts[:type]
         self._property_has_many name, opts[:type]
+      # has_many, and *don't* allow attributes
+      elsif self.is_model_list? opts[:type]
+        method = "#{name.to_s.singularize}_ids"
+        define_method(method) { self.send(name).map(&:id) }
+        define_method("#{method}=") do |val|
+          model = Object.const_get name.to_s.singularize.camelize
+          self.send "#{name}=", val.reject(&:blank?).map { |v| model.find v }
+        end
       end
     end
 
@@ -136,11 +144,18 @@ module FormThis
 
 
     # Check if +klass+ extends +ActiveModel::Naming+
-    # TODO: We might want to make this more ducktype-y
+    # TODO: This returns True for both FormThis objects & AR objects; fixing
+    # this seems to break stuff...
     def self.is_model? klass
       (klass.is_a?(Class) ? klass : klass.class).singleton_class.included_modules.include? ActiveModel::Naming
     end
     def is_model? klass; self.class.is_model? klass end
+
+    # Check if +klass+ is a list of models
+    def self.is_model_list? klass
+      klass.is_a?(Array) && self.is_model?(klass[0])
+    end
+    def is_model_list? klass; self.class.is_model_list? klass end
 
 
     # Check if +klass+ is a nested form
