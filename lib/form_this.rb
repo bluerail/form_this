@@ -323,7 +323,7 @@ module FormThis
     private
 
       # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
-      def _property_has_one_form name
+      def self._property_has_one_form name
         define_method "#{name}_attributes=" do |params|
           self.send(name).validate params
         end
