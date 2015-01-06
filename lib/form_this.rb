@@ -74,33 +74,16 @@ module FormThis
 
       # has_one or belongs_to, and allow attributes
       if self.is_form_this? opts[:type]
-        define_method "#{name}_attributes=" do |params|
-          self.send(name).validate params
-        end
+        self._property_has_one_form name
       # has_one or belongs_to, and *don't* allow attributes
       elsif self.is_model? opts[:type]
-        self._property_has_one name, opts[:type]
-
-        # Formtastic uses the name of the foreign key, which usually won't be
-        # the same name as what we use in a form object
-        if FormThis.foreign_key_aliases
-          refl = self.reflect_on_association name
-          if refl
-            define_method(refl.foreign_key) { self.send(name).try :id }
-            define_method("#{refl.foreign_key}=") { |v| self.send "#{name}=", v }
-          end
-        end
+        self._property_has_one_record name, opts[:type]
       # has_many, and allow attributes
       elsif self.is_nested? opts[:type]
-        self._property_has_many name, opts[:type]
+        self._property_has_many_forms name, opts[:type]
       # has_many, and *don't* allow attributes
       elsif self.is_model_list? opts[:type]
-        method = "#{name.to_s.singularize}_ids"
-        define_method(method) { self.send(name).map(&:id) }
-        define_method("#{method}=") do |val|
-          model = Object.const_get name.to_s.singularize.camelize
-          self.send "#{name}=", val.reject(&:blank?).map { |v| model.find v }
-        end
+        self._property_has_many_records name
       end
     end
 
@@ -340,15 +323,32 @@ module FormThis
     private
 
       # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
-      def self._property_has_one name, type
+      def _property_has_one_form name
+        define_method "#{name}_attributes=" do |params|
+          self.send(name).validate params
+        end
+      end
+
+      # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
+      def self._property_has_one_record name, type
         define_method "#{name}=" do |record|
           super self.find_record(record, type)
+        end
+
+        # Formtastic uses the name of the foreign key, which usually won't be
+        # the same name as what we use in a form object
+        if FormThis.foreign_key_aliases
+          refl = self.reflect_on_association name
+          if refl
+            define_method(refl.foreign_key) { self.send(name).try :id }
+            define_method("#{refl.foreign_key}=") { |v| self.send "#{name}=", v }
+          end
         end
       end
 
 
       # Helper for +self.property+, +has_many+ associations.
-      def self._property_has_many name, type
+      def self._property_has_many_forms name, type
         # Allow attributes
         if self.is_form_this? type.first
           self._property_has_many_with_attributes name, type
@@ -362,6 +362,17 @@ module FormThis
         # Does assigning an Array[String] ever make sense?
         else
           raise 'You need to use FormThis::Base or ActiveRecord::Base'
+        end
+      end
+
+
+      # Helper for +self.property+, +has_many+ associations.
+      def self._property_has_many_records name
+        method = "#{name.to_s.singularize}_ids"
+        define_method(method) { self.send(name).map(&:id) }
+        define_method("#{method}=") do |val|
+          model = Object.const_get name.to_s.singularize.camelize
+          self.send "#{name}=", val.reject(&:blank?).map { |v| model.find v }
         end
       end
 
