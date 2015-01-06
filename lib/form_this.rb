@@ -58,13 +58,16 @@ module FormThis
     #
     # Anything else will passed on to the record (+record.send name+)
     #
-    # You can use +Array[SomeModel]+ or +Array[SomeForm_Nested]+ to allow multiple instances.
+    # You can use +Array[SomeModel]+ or +Array[SomeForm_Nested]+ to allow
+    # multiple instances.
     #
     # +type+ defaults to +String+
     #
-    # validates:: ActiveRecord validation
+    # validates::
+    # ActiveRecord validation.
     #
-    # virtus:: Additional options to pass to Virtus
+    # virtus::
+    # Additional options to pass to Virtus.
     def self.property name, opts={}
       attribute name, opts[:type] || String, opts[:virtus] || {}
       validates name, opts[:validates] if opts[:validates]
@@ -176,7 +179,7 @@ module FormThis
     # attributes from this AR instance to the form object
     def initialize record
       raise "You must initialize FormThis::Base with an ActiveModel::Naming instance, but you passed a `#{record.class}' (`#{record}') to #{self.class}" unless self.is_model? record
-      
+
       @record = record
       attrs = {}
       # TODO: Make it a callback
@@ -285,42 +288,16 @@ module FormThis
     # Copy the data from the form class to the record; this does *not* persist
     # anything to the database, that is done by +persist!+.
     def update_record
-      if @parent.nil?
-        self.execute_for_all_forms(false) { |f| f.update_record }
-        @record.assign_attributes self.to_h
-      else
-        @record.assign_attributes self.to_h
-      end
-    end
+      self.attributes.each do |k, v|
+        next if self.is_nested?(v) || self.is_form_this?(v)
 
-
-    # Convert a form object to a hash acceptable for the +new+ & +update+ method
-    # of +ActiveRecord+.
-    def to_h
-      convert_form_object = -> (form_object) do
-        # FormThis with id
-        if self.is_form_this?(form_object) && form_object.id.present?
-          form_object.model_class.find(form_object.id).tap { |set| set.update form_object.to_h }
-        # FormThis w/o id
-        elsif self.is_form_this?(form_object)
-          #raise
-          form_object.model_class.new form_object.to_h # XXX
-        # Array[FormThis]
-        elsif self.is_nested? form_object
-          form_object.map { |obj| convert_form_object.call obj }
+        # TODO: Make this an option
+        if k == :_destroy
+          self.record.destroy if v.present?
+          next
         end
-      end
 
-      self.attributes.inject({}) do |acc, (k, v)|
-        #if self.is_form_this?(v) || self.is_nested?(v)
-        if self.is_nested? v
-          acc[k] = convert_form_object.call v
-        elsif self.is_form_this? v
-          # Do nothing
-        else
-          acc[k] = v
-        end
-        next acc
+        @record.send "#{k}=", v
       end
     end
 
@@ -328,17 +305,7 @@ module FormThis
     # Persist the record to the database. You usually want to call
     # +update_record+ before calling this.
     def persist!
-      success = true
-      if @parent.nil?
-        @record.transaction do
-          self.execute_for_all_forms(false) { |f| f.persist! && success }
-          success = @record.save && success
-        end
-      else
-          success = @record.save && success
-      end
-
-      return success
+      @record.save
     end
 
 
@@ -442,7 +409,7 @@ if defined? ActionView
 
             if !options[:skip_protection] && !FormThis::Base.is_form_this?(object)
               raise 'You need to pass a FormThis::Base object to form_for. ' +
-                'You see this warning because FormThis.protect_form_for is enabled.'
+                "You get this error because `FormThis.protect_form_for' is enabled."
             end
           end
 
