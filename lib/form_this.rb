@@ -316,6 +316,12 @@ module FormThis
     end
 
 
+    # Call +save+ and raise +ActiveRecord::RecordNotSaved+ if it fails.
+    def save!
+      self.save || raise(ActiveRecord::RecordNotSaved.new(nil, self))
+    end
+
+
     # Try to find an AR from +record+, which may be an AR instance, the record
     # id, or nil; we expect the +type+ to be an AR class.
     def find_record record, type
