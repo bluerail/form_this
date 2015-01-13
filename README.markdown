@@ -69,85 +69,97 @@ This!*; the basic work flow looks like:
 
 What it actually looks like
 ---------------------------
-**`app/models/artist.rb`**
+**`app/models/artist.rb`**:
 
-    class Artist < ActiveRecord::Base
-      has_many :albums
-    end
+```ruby
+class Artist < ActiveRecord::Base
+  has_many :albums
+end
+```
 
-**`app/models/album.rb`**
+**`app/models/album.rb`**:
 
-    class Album < ActiveRecord::Base
-      belongs_to :artist
-    end
+```ruby
+class Album < ActiveRecord::Base
+  belongs_to :artist
+end
+```
 
 **`app/forms/artist_form.rb`**
 
-    class ArtistForm < FormThis::Base
-      property :name, validates: { presence: true }
-      property :albums, type: Array[AlbumForm]
+```ruby
+class ArtistForm < FormThis::Base
+  property :name, validates: { presence: true }
+  property :albums, type: Array[AlbumForm]
 
-      # Make sure there is at least one album so that the form for this gets built
-      def set_defaults
-        @record.albums.build if @record.albums.blank?
-      end
+  # Make sure there is at least one album so that the form for this gets built
+  def set_defaults
+    @record.albums.build if @record.albums.blank?
+  end
 
-      def persist!
-        @record.transaction do
-          @record.save
-          self.albums.each(&:save)
-        end
-      end
+  def persist!
+    @record.transaction do
+      @record.save
+      self.albums.each(&:save)
     end
+  end
+end
+```
 
-**`app/forms/album_form.rb`**
+**`app/forms/album_form.rb`**:
 
-    class AlbumForm < FormThis::Base
-      property :name, validates: { presence: true }
+```ruby
+class AlbumForm < FormThis::Base
+  property :name, validates: { presence: true }
+end
+```
+
+**`app/controller/artists_controller`**:
+
+```ruby
+class ArtistsController
+  def new
+    @form = ArtistForm.new Artist.new
+  end
+
+  def create
+    @form = ArtistForm.new Artist.new
+
+    # Note using Rail’s strong parameters here. They’re no longer required,
+    # since we already explicitly define which attributes may be assigned in
+    # our form object, so using it would be redundant.
+    if @form.validate(params[:artist]) && @form.save
+      redirect_to @form
+    else
+      render action: :new
     end
+  end
 
-**`app/controller/artists_controller`**
+  def edit
+    @form = ArtistForm.new Artist.find(params[:id])
+  end
 
-    class ArtistsController
-      def new
-        @form = ArtistForm.new Artist.new
-      end
-
-      def create
-        @form = ArtistForm.new Artist.new
-
-        # Note using Rail’s strong parameters here. They’re no longer required,
-        # since we already explicitly define which attributes may be assigned in
-        # our form object, so using it would be redundant.
-        if @form.validate(params[:artist]) && @form.save
-          redirect_to @form
-        else
-          render action: :new
-        end
-      end
-
-      def edit
-        @form = ArtistForm.new Artist.find(params[:id])
-      end
-
-      def update
-        @form = ArtistForm.new Artist.find(params[:id])
-        if @form.validate(params[:artist]) && @form.save
-          redirect_to @form
-        else
-          render action: :edit
-        end
-      end
+  def update
+    @form = ArtistForm.new Artist.find(params[:id])
+    if @form.validate(params[:artist]) && @form.save
+      redirect_to @form
+    else
+      render action: :edit
     end
+  end
+end
+```
 
 
-**`app/views/artists/news.html.erb`**
+**`app/views/artists/news.html.erb`**:
 
-    <%= form_for @form do |f| %>
-      <% = f.input do %>
-        <%= f.input :name %>
-      <% end %>
-    <% end %>
+```erb
+<%= form_for @form do |f| %>
+  <% = f.input do %>
+    <%= f.input :name %>
+  <% end %>
+<% end %>
+```
 
 
 As you see, it’s very similar to a ‘normal’ rails application; you just use
