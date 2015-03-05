@@ -61,10 +61,6 @@ describe FormThis do
   end
 
 
-  describe 'to_h' do
-  end
-
-
   describe 'persist!' do
   end
 

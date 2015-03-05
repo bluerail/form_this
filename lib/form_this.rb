@@ -1,3 +1,10 @@
+#
+# https://github.com/bluerail/form_this
+#
+# Copyright © 2014-2015 LICO Innovations
+# See below for full copyright
+#
+
 require 'virtus'
 
 module FormThis
@@ -14,6 +21,18 @@ module FormThis
 
     # Every form object has an ActiveRecord instance associated with it.
     attr_accessor :record
+
+
+    # Track which attributes can have the +_destroy+ parameter set to destroy it
+    @_attributes_allow_destroy = {}
+
+
+    # Delegate some methods to the record
+    # - +id+ & +persisted?+ are required for +form_for+;
+    # - +column_for_attribute+ allows +Formtastic+ to guess the input type
+    #   (deprecated in Rails 5 though...)
+    # - +new_record?+ is just for convenience.
+    delegate :id, :persisted?, :column_for_attribute, :has_attribute?, :new_record?, to: :record
 
 
     # Manually set the model name, normally this is inferred from the class name
@@ -75,12 +94,14 @@ module FormThis
       # has_one or belongs_to, and allow attributes
       if self.is_form_this? opts[:type]
         self._property_has_one_form name
+        @_attributes_allow_destroy[k] = !(opts[:allow_destroy] == false)
       # has_one or belongs_to, and *don't* allow attributes
       elsif self.is_model? opts[:type]
         self._property_has_one_record name, opts[:type]
       # has_many, and allow attributes
       elsif self.is_nested? opts[:type]
         self._property_has_many_forms name, opts[:type]
+        @_attributes_allow_destroy[k] = !(opts[:allow_destroy] == false)
       # has_many, and *don't* allow attributes
       elsif self.is_model_list? opts[:type]
         self._property_has_many_records name
@@ -129,11 +150,9 @@ module FormThis
     def is_form_this? klass; self.class.is_form_this? klass end
 
 
-    # Check if +klass+ extends +ActiveModel::Naming+
-    # TODO: This returns True for both FormThis objects & AR objects; fixing
-    # this seems to break stuff...
+    # Check if +klass+ extends +ActiveRecord::Persistence+
     def self.is_model? klass
-      (klass.is_a?(Class) ? klass : klass.class).singleton_class.included_modules.include? ActiveModel::Naming
+      (klass.is_a?(Class) ? klass : klass.class).singleton_class.included_modules.include? ActiveRecord::Persistence::ClassMethods
     end
     def is_model? klass; self.class.is_model? klass end
 
@@ -161,12 +180,11 @@ module FormThis
     # We always have to start with an ActiveRecord::Base instance; we copy the
     # attributes from this AR instance to the form object
     def initialize record
-      raise "You must initialize FormThis::Base with an ActiveModel::Naming instance, but you passed a `#{record.class}' (`#{record}') to #{self.class}" unless self.is_model? record
+      raise "You must initialize FormThis::Base with an ActiveRecord::Base instance, but you passed a `#{record.class}' (`#{record}') to #{self.class}" unless self.is_model? record
 
       @record = record
       attrs = {}
-      # TODO: Make it a callback
-      self.set_defaults
+      self.set_defaults  # TODO: Make it a callback
 
       # Make sure we never modify anything in the DB here
       @record.transaction do
@@ -177,37 +195,10 @@ module FormThis
 
       return self
     end
-    def set_defaults; end
-
-
     # You can override this in your class to set defaults on +@record+; it is
     # executed after +@record+ is set, and before the +@record+ attributes are
     # copies to the form class.
-    #
-
-    # Call +@record.id+; we need this for +form_for+.
-    def id
-      @record.id
-    end
-
-
-    # Call +@record.persisted?+; we need this for +form_for+.
-    def persisted?
-      @record.persisted?
-    end
-
-
-    # Call +@record.new_record?+
-    def new_record?
-      @record.new_record?
-    end
-
-
-    # Call +@record.column_for_attribute+; this allows Formtastic to guess the
-    # input typpe
-    def column_for_attribute name
-      @record.column_for_attribute name
-    end
+    def set_defaults; end
 
 
     # Assign values to the form object, and run validations.
@@ -215,31 +206,30 @@ module FormThis
     # +params+ are the parameters the user filled in in the form; you usually use
     # something like:
     #
-    #   @form.validate(params[:myobject) && @form.save
+    #   @form.validate(params[:myobject]) && @form.save
     #
     # +_parent+ is used to the set the parent form object; this is used
     # internally and should not be set in an application.
     #
     # We silently skip if we don't know this attribute; this is the same
     # behaviour as strong parameters.
-    # TODO: Also log this, like strong parameters does
     def validate params, _parent=nil
       @parent = _parent
       valid = true
-
-      params.each do |k, v|
-        next if k.to_s.end_with? '_attributes'
-        next unless self.respond_to? "#{k}="
-        self.send "#{k}=", v
-      end
+      unpermitted = []
 
       # First set all non-nested attributes; then set the nested. This way we
       # can access the parameter from the parent from the nested record
+      params.each do |k, v|
+        next if k.to_s.end_with? '_attributes'
+        next unpermitted << k unless self.respond_to? "#{k}="
+        self.send "#{k}=", v
+      end
 
       # Set nested records
       params.each do |k, v|
         next unless k.to_s.end_with? '_attributes'
-        next unless self.respond_to? "#{k}="
+        next unpermitted << k unless self.respond_to? "#{k}="
 
         # k is the following function:
         #
@@ -248,6 +238,18 @@ module FormThis
         # end
         r = self.send "#{k}=", v
         valid = r && valid
+      end
+
+      # TODO: Also check nested forms?
+
+      if unpermitted.length > 0
+        case ActionController::Parameters.action_on_unpermitted_parameters
+          when :log
+            ActiveSupport::Notifications.instrument 'unpermitted_parameters.action_controller',
+              keys: unpermitted
+          when :raise
+            raise ActionController::UnpermittedParameters.new unpermitted
+        end
       end
 
       return self.valid? && valid
@@ -272,10 +274,10 @@ module FormThis
     # anything to the database, that is done by +persist!+.
     def update_record
       self.attributes.each do |k, v|
+        raise
         next if self.is_nested?(v) || self.is_form_this?(v)
 
-        # TODO: Make this an option
-        if k == :_destroy
+        if @_attributes_allow_destroy[k] && k == :_destroy
           self.record.destroy if v.present?
           next
         end
@@ -287,6 +289,7 @@ module FormThis
 
     # Persist the record to the database. You usually want to call
     # +update_record+ before calling this.
+    # This *only* persists +@record+, and *not* nested forms.
     def persist!
       @record.save
     end
@@ -294,8 +297,7 @@ module FormThis
 
     # Call +update_record+ & +persist!+. Return +false+ on failure.
     def save
-      self.update_record
-      self.persist!
+      self.update_record && !!self.persist!
     end
 
 
@@ -406,6 +408,9 @@ if defined? ActionView
   module ActionView
     module Helpers
       module FormHelper
+        # Save the original +form_for+
+        alias __original_form_for__ form_for
+
         # If you're using +FormThis+, you never want to pass an
         # +ActiveRecord+ instance to +form_for+, doing so can lead to strange
         # behaviour, strange errors, and -worst of all- invalid data in your
@@ -414,7 +419,6 @@ if defined? ActionView
         # anything other than a +FormThis::Base+ instance.
         #
         # This can be disabled by setting +FormThis.protect_form_for+ to +false+.
-        alias __original_form_for__ form_for
         def form_for record, options = {}, &block
           if FormThis.protect_form_for
             case record
@@ -437,4 +441,26 @@ if defined? ActionView
   end
 end
 
+
+# Copyright © 2014-2015 LICO Innovations
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# 
 # vim:expandtab:ts=2:sts=2:sw=2

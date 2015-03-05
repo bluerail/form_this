@@ -18,6 +18,7 @@ module FormThisSpecHelper
 
   class TestRecord
     include ActiveModel::Model
+    include ActiveRecord::Persistence
 
     def initialize attr={}
       attr.each { |k, v| send("#{k}=", v) }

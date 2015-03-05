@@ -1,14 +1,14 @@
 $:.push File.expand_path('../lib', __FILE__)
 
 Gem::Specification.new do |s|
-  s.name        = 'form_this'
-  s.version     = '0.1'
-  s.authors     = ['Martin Tournoij']
-  s.email       = ['martin@lico.nl']
-  s.homepage    = 'https://github.com/bluerail/form_this'
-  s.summary     = 'Form objects outside your models'
+  s.name = 'form_this'
+  s.version = '0.1'
+  s.authors = ['Martin Tournoij']
+  s.email = ['martin@lico.nl']
+  s.homepage = 'https://github.com/bluerail/form_this'
+  s.summary = 'Form objects outside your models'
   s.description = 'Make it easy & painless to use form objects outside your models'
-  s.license     = 'MIT'
+  s.license = 'MIT'
 
   s.files = Dir['{app,config,db,lib}/**/*', 'MIT-LICENSE', 'Rakefile', 'README.markdown']
   s.test_files = Dir['spec/**/*']

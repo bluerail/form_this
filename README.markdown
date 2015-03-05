@@ -89,7 +89,10 @@ end
 
 ```ruby
 class ArtistForm < FormThis::Base
+  # The default type is String
   property :name, validates: { presence: true }
+
+  # Allow an Array of AlbumForms
   property :albums, type: Array[AlbumForm]
 
   # Make sure there is at least one album so that the form for this gets built
@@ -97,6 +100,8 @@ class ArtistForm < FormThis::Base
     @record.albums.build if @record.albums.blank?
   end
 
+  # We don't persist nested form automatically; you need to do that manually.
+  # This is feature :-)
   def persist!
     @record.transaction do
       @record.save
@@ -196,6 +201,31 @@ Options
   (if any). This is required for Formtastic to work properly. If is enabled by
   default.
 
+Tips
+====
+
+## delegate
+You can use [delegate][delegate] to delegate or proxy functions to your record,
+for example:
+
+```ruby
+class Person < ActiveRecord::Base
+  def full_name
+    "#{self.first_name} #{self.last_name}"
+  end
+
+  def has_address?
+    self.address.present?
+  end
+end
+```
+
+```ruby
+class PersonForm < FormThis::Base
+  delegate :full_name, :has_address?, to: :record
+end
+
+[delegate]: http://api.rubyonrails.org/classes/Module.html#method-i-delegate
 
 TODO
 ====
@@ -204,8 +234,35 @@ Before a 1.0 release, we need to:
 - Write good tests
 - Provide proper `{before,after}_*` callbacks
 - Make the demo app better, show *all* of the features
+- Make sure `self._property_has_many_with_attributes` is correct.
 - `grep -r TODO` and fix it all
 
+Thing I'd like to do later (perhaps):
+
+- In a few places it's tied to `ActiveRecord`/`ActiveModel`, but this doesn't
+  have to be. Making it independent of Rails might be nice.
+
+
+## Data normalization
+
+You can use [Virtus' custom coercions][coercions] with Form This!. For example:
+
+```ruby
+class IbanType < Virtus::Attribute
+  # Remove spaces from IBAN account numbers
+  def coerce v
+    v.respond_to?(:to_s) ? v.to_s.gsub(/\s+/, '') : v
+  end
+end
+```
+
+```ruby
+class PersonForm > FormThis::Base
+  propery :iban, type: IbanType
+end
+```
+
+[coercions]: https://github.com/solnic/virtus#custom-coercions
 
 
 Similar projects
