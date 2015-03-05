@@ -9,19 +9,19 @@ This is a fairly simple gem, and a wrapper around
 currently change at any given moment.  
 I have **not** tested this with Rails 3, and you will need Ruby 2.0 or newer.
 
+
 Why?
 ====
-
-My chief gripe with the way ActiveRecord does things is that it quickly leads to
-a heavy dose of spaghetti code when your forms get more complicated. Your
-validation code may be spread out of 3, 4, or more models; to tie it all
-together, you also need some code in your controller, part of which may be
-shared, so that’s a concern for your controller and/or model.  
-It becomes easy to lose track of what-the-hell is going on.
+My chief gripe with ActiveRecord is that it can quickly lead to a heavy dose of
+spaghetti code when your forms get more complicated. Your validation code may be
+spread out of 3, 4, or more models, and to tie it all together, you also need
+some code in your controller, part of which may be shared, so that’s a concern
+for your controller and/or model. It becomes easy to lose track of what-the-hell
+is going on.
 
 With *Form This!*, all your validation code sits in a ‘form object’, your model
 will just take care of interfacing with the database. There is a much clearer
-‘seperation of concerns’.
+‘separation of concerns’.
 
 
 Goals
@@ -37,13 +37,13 @@ Goals
    projects & forms.
 
 
-Gettings started
-================
+Getting started
+===============
 
 Basic workflow
 --------------
 It should usually be fairly easy replace a ‘normal’ Rails application with *Form
-This!*; the basic work flow looks like:
+This!*; the basic workflow looks like:
 
 1. You create a new `FormThis` by passing an `ActiveRecord::Base` instance (ie.
    a model). This will be assigned to the `record` attribute. `FormThis` copies
@@ -224,23 +224,9 @@ end
 class PersonForm < FormThis::Base
   delegate :full_name, :has_address?, to: :record
 end
+```
 
 [delegate]: http://api.rubyonrails.org/classes/Module.html#method-i-delegate
-
-TODO
-====
-Before a 1.0 release, we need to:
-
-- Write good tests
-- Provide proper `{before,after}_*` callbacks
-- Make the demo app better, show *all* of the features
-- Make sure `self._property_has_many_with_attributes` is correct.
-- `grep -r TODO` and fix it all
-
-Thing I'd like to do later (perhaps):
-
-- In a few places it's tied to `ActiveRecord`/`ActiveModel`, but this doesn't
-  have to be. Making it independent of Rails might be nice.
 
 
 ## Data normalization
@@ -264,6 +250,22 @@ end
 
 [coercions]: https://github.com/solnic/virtus#custom-coercions
 
+
+TODO
+====
+Before a 1.0 release, we need to:
+
+- Write good tests
+- Provide proper `{before,after}_*` callbacks
+- Make the demo app better, show *all* of the features
+- Make sure `self._property_has_many_with_attributes` is correct.
+- `grep -r TODO` and fix it all
+- Also test simple_form and perhaps some other form builders
+
+Thing I'd like to do later (perhaps):
+
+- In a few places it's tied to `ActiveRecord`/`ActiveModel`, but this doesn't
+  have to be. Making it independent of Rails might be nice.
 
 Similar projects
 ================
