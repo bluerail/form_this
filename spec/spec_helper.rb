@@ -5,45 +5,37 @@ require 'bundler/setup'
 require 'active_model'
 require 'active_record'
 require 'active_support'
+require 'active_support/all'
 
 require 'virtus'
+require 'factory_girl'
+require 'faker'
 
-Dir["#{File.dirname(__FILE__)}/../lib/**/*.rb"].sort.each { |f| require f }
+Dir["#{File.dirname __FILE__}/../lib/**/*.rb"].sort.each { |f| require f }
+Dir["#{File.dirname __FILE__}/models/*.rb"].sort.each { |f| require f }
+Dir["#{File.dirname __FILE__}/factories/*.rb"].sort.each { |f| require f }
 
-# Shuts up some warnings
+# TODO: Order matters.. We would prefer to just autoload..
+%w(base comment genre track album artist) .each do |f|
+  require "#{File.dirname __FILE__}/forms/#{f}_form.rb"
+end
+
+# Shuts up some warnings/messages
 I18n.enforce_available_locales = false
+ActiveRecord::Migration.verbose = false
 
-module FormThisSpecHelper
-  @@n = 0
+# Setup our database
+ActiveRecord::Base.configurations = {'test' => {adapter: 'sqlite3', database: ':memory:'}}
+ActiveRecord::Base.establish_connection :test
 
-  class TestRecord
-    include ActiveModel::Model
-    include ActiveRecord::Persistence
+RSpec.configure do |config|
+  config.include FactoryGirl::Syntax::Methods
 
-    def initialize attr={}
-      attr.each { |k, v| send("#{k}=", v) }
-      super()
-    end
+  config.order = "random"
+  config.expect_with(:rspec) { |c| c.syntax = :expect }
 
-
-    def method_missing m, *args
-      if m.to_s.end_with? '='
-        instance_variable_set "@_#{m[0..-2]}", args[0]
-      else
-        instance_variable_get "@_#{m}"
-      end
-    end
-  end
-
-
-  def make_form *props, **opts
-    @@n += 1
-
-    eval("class TestForm#{@@n} < FormThis::Base
-      #{opts[:eval] || ''}
-    end")
-    klass = Object.const_get "FormThisSpecHelper::TestForm#{@@n}"
-    klass.properties(*props, **opts)
-    return klass.new TestRecord.new
+  config.before(:suite) do
+    ActiveRecord::Tasks::DatabaseTasks.create_all
+    load "#{File.dirname __FILE__}/schema.rb"
   end
 end

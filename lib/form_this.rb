@@ -8,9 +8,21 @@
 require 'virtus'
 
 module FormThis
+  # If you're using +FormThis+, you almost never want to pass an +ActiveRecord+
+  # instance to +form_for+, doing so can lead to strange behaviour, strange
+  # errors, and -worst of all- invalid data in your database.
+  #
+  # This "protects" +form_for+ and will raise an +Exception+ if we pass in
+  # anything other than a +FormThis::Base+ instance.
+  #
+  # This can be disabled by setting +FormThis.protect_form_for+ to +false+.
   mattr_accessor :protect_form_for
-  mattr_accessor :foreign_key_aliases
   @@protect_form_for = true
+
+
+  # Formtastic uses the name of the foreign key, which usually won't be the same
+  # name as what we use in a form object.
+  mattr_accessor :foreign_key_aliases
   @@foreign_key_aliases = true
 
 
@@ -22,15 +34,20 @@ module FormThis
     # Every form object has an ActiveRecord instance associated with it.
     attr_accessor :record
 
+    # Store all properties & options
+    class_attribute :defined_properties
+    self.defined_properties = {}
+
 
     # Track which attributes can have the +_destroy+ parameter set to destroy it
-    @_attributes_allow_destroy = {}
+    #attr_accessor :_attributes_allow_destroy
+    #self._attributes_allow_destroy = {}
 
 
     # Delegate some methods to the record
     # - +id+ & +persisted?+ are required for +form_for+;
     # - +column_for_attribute+ allows +Formtastic+ to guess the input type
-    #   (deprecated in Rails 5 though...)
+    #   (TODO: deprecated in Rails 5)
     # - +new_record?+ is just for convenience.
     delegate :id, :persisted?, :column_for_attribute, :has_attribute?, :new_record?, to: :record
 
@@ -88,20 +105,19 @@ module FormThis
     # virtus::
     # Additional options to pass to Virtus.
     def self.property name, opts={}
-      attribute name, opts[:type] || String, opts[:virtus] || {}
-      validates name, opts[:validates] if opts[:validates]
+      self.defined_properties[name] = opts
+      self.attribute name, opts[:type] || String, opts[:virtus] || {}
+      self.validates name, opts[:validates] if opts[:validates]
 
       # has_one or belongs_to, and allow attributes
       if self.is_form_this? opts[:type]
         self._property_has_one_form name
-        @_attributes_allow_destroy[k] = !(opts[:allow_destroy] == false)
       # has_one or belongs_to, and *don't* allow attributes
       elsif self.is_model? opts[:type]
         self._property_has_one_record name, opts[:type]
       # has_many, and allow attributes
       elsif self.is_nested? opts[:type]
         self._property_has_many_forms name, opts[:type]
-        @_attributes_allow_destroy[k] = !(opts[:allow_destroy] == false)
       # has_many, and *don't* allow attributes
       elsif self.is_model_list? opts[:type]
         self._property_has_many_records name
@@ -121,18 +137,18 @@ module FormThis
     #   properties :street, number, type: String, validates: { presence: true }
     def self.properties *names, **names_with_opts
       params = {}
-      names_with_opts.each do |k, v|
+      names_with_opts.each do |name, v|
         case k.to_sym
           when :type
             params[:type] = v
           when :validates
             params[:validates] = v
           else
-            self.property k, v
+            self.property name, v
         end
       end
 
-      names.each { |n| self.property n, params }
+      names.each { |name| self.property name, params }
     end
 
 
@@ -156,6 +172,7 @@ module FormThis
     end
     def is_model? klass; self.class.is_model? klass end
 
+
     # Check if +klass+ is a list of models
     def self.is_model_list? klass
       klass.is_a?(Array) && self.is_model?(klass[0])
@@ -177,6 +194,26 @@ module FormThis
     def model_class; self.class.model_class end
 
 
+    # Get the contents as a formatted string
+    def inspect
+      "#<#{self.class} #{self.attributes.map { |k, v| "#{k}: #{self.attribute_for_inspect v}" }.join ', '}>"
+    end
+
+
+    # From Rails
+    def attribute_for_inspect value
+      if value.is_a?(String) && value.length > 50
+        "#{value[0, 50]}...".inspect
+      elsif value.is_a?(Date) || value.is_a?(Time)
+        %("#{value.to_s(:db)}")
+      elsif value.is_a?(Array) && value.size > 10
+        %(#{value.first(10).inspect[0...-1]}, ...])
+      else
+        value.inspect
+      end
+    end
+
+
     # We always have to start with an ActiveRecord::Base instance; we copy the
     # attributes from this AR instance to the form object
     def initialize record
@@ -188,6 +225,7 @@ module FormThis
 
       # Make sure we never modify anything in the DB here
       @record.transaction do
+        # TODO: Allow attributes which aren't in the record
         self.attributes.each { |k, v| attrs[k] = @record.send k }
         super attrs
         raise ActiveRecord::Rollback
@@ -199,6 +237,24 @@ module FormThis
     # executed after +@record+ is set, and before the +@record+ attributes are
     # copies to the form class.
     def set_defaults; end
+
+
+    # Is this form valid? Also check all nested forms
+    def valid? context=nil
+      valid = super
+      self.execute_for_all_forms(false) do |form, name|
+        v = form.valid? context
+
+        # Skip if reject_if callback is true
+        # TODO: Allow symbols, and a shortcut for REJECT_ALL_BLANK_PROC
+        if name && self.defined_properties[name][:reject_if].present? && self.defined_properties[name][:reject_if].call(form.attributes)
+          next
+        end
+
+        valid = valid && v
+      end
+      return valid
+    end
 
 
     # Assign values to the form object, and run validations.
@@ -215,7 +271,6 @@ module FormThis
     # behaviour as strong parameters.
     def validate params, _parent=nil
       @parent = _parent
-      valid = true
       unpermitted = []
 
       # First set all non-nested attributes; then set the nested. This way we
@@ -226,7 +281,7 @@ module FormThis
         self.send "#{k}=", v
       end
 
-      # Set nested records
+      # Set nested forms
       params.each do |k, v|
         next unless k.to_s.end_with? '_attributes'
         next unpermitted << k unless self.respond_to? "#{k}="
@@ -236,33 +291,37 @@ module FormThis
         # define_method "#{name}_attributes=" do |params|
         #   self.send(name).validate params
         # end
-        r = self.send "#{k}=", v
-        valid = r && valid
+        self.send "#{k}=", v
       end
 
-      # TODO: Also check nested forms?
-
+      # We tried to set an unknown/unpermitted attribute
       if unpermitted.length > 0
-        case ActionController::Parameters.action_on_unpermitted_parameters
-          when :log
-            ActiveSupport::Notifications.instrument 'unpermitted_parameters.action_controller',
-              keys: unpermitted
-          when :raise
-            raise ActionController::UnpermittedParameters.new unpermitted
+        if defined? ActionController
+          case ActionController::Parameters.action_on_unpermitted_parameters
+            when :log
+              ActiveSupport::Notifications.instrument 'unpermitted_parameters.action_controller',
+                keys: unpermitted
+            when :raise
+              raise ActionController::UnpermittedParameters.new unpermitted
+          end
+        else
+          puts "==> WARNING Unpermitted parameters assigned: #{unpermitted.join ', '}"
         end
       end
 
-      return self.valid? && valid
+      return self.valid?
     end
 
 
     # Execute the code in +&block+ for +self+ and all nested forms.
+    # Parameters passed are the form object and the name of the relation
     def execute_for_all_forms including_self=true, &block
-      block.call self if including_self
-      self.attributes.each do |k, v|
+      block.call self, false if including_self
+
+      self.attributes.each do |name, v|
         if self.is_form_this? v
-          block.call v
-          v.execute_for_all_forms(true, &block)
+          block.call v, name
+          v.execute_for_all_forms(false, &block)
         elsif self.is_nested? v
           v.each { |n| n.execute_for_all_forms(true, &block) }
         end
@@ -273,16 +332,10 @@ module FormThis
     # Copy the data from the form class to the record; this does *not* persist
     # anything to the database, that is done by +persist!+.
     def update_record
-      self.attributes.each do |k, v|
-        raise
+      self.attributes.each do |name, v|
         next if self.is_nested?(v) || self.is_form_this?(v)
-
-        if @_attributes_allow_destroy[k] && k == :_destroy
-          self.record.destroy if v.present?
-          next
-        end
-
-        @record.send "#{k}=", v
+        next if name.to_sym == :_destroy
+        @record.send "#{name}=", v
       end
     end
 
@@ -297,7 +350,7 @@ module FormThis
 
     # Call +update_record+ & +persist!+. Return +false+ on failure.
     def save
-      self.update_record && !!self.persist!
+      self.valid? && self.update_record && !!self.persist!
     end
 
 
@@ -310,14 +363,14 @@ module FormThis
     # Try to find an AR from +record+, which may be an AR instance, the record
     # id, or nil; we expect the +type+ to be an AR class.
     def find_record record, type
-      if record == ''
+      if record == '' || record.nil?
         nil
       elsif self.is_model? record
         record
       elsif record.respond_to?(:to_i) && record.to_i > 0
         type.find record.to_i
       else
-        record
+        raise TypeError, "Can't find a `#{type}' record from `#{record}'"
       end
     end
 
@@ -330,6 +383,7 @@ module FormThis
           self.send(name).validate params, self
         end
       end
+
 
       # Helper for +self.property+, +has_one+ or +belongs_to+ associations.
       def self._property_has_one_record name, type
@@ -404,6 +458,7 @@ module FormThis
 end
 
 
+# Patch +form_for+ for the +FormThis.protect_form_for+ option
 if defined? ActionView
   module ActionView
     module Helpers
@@ -411,14 +466,6 @@ if defined? ActionView
         # Save the original +form_for+
         alias __original_form_for__ form_for
 
-        # If you're using +FormThis+, you never want to pass an
-        # +ActiveRecord+ instance to +form_for+, doing so can lead to strange
-        # behaviour, strange errors, and -worst of all- invalid data in your
-        # database.
-        # This "protects" +form_for+ and will raise an +Exception+ if we pass in
-        # anything other than a +FormThis::Base+ instance.
-        #
-        # This can be disabled by setting +FormThis.protect_form_for+ to +false+.
         def form_for record, options = {}, &block
           if FormThis.protect_form_for
             case record
