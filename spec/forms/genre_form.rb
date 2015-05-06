@@ -1,4 +1,3 @@
-class GenreForm < FormThis::Base
-  # TODO: validate unique
+class GenreForm < BaseForm
   property :name, validates: { presence: true }
 end

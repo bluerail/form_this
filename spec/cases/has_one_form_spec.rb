@@ -58,7 +58,7 @@ describe FormThis do
     end
 
 
-    it 'can be destroyed if allowed', f:true do
+    it 'can be destroyed if allowed' do
       album_form = AlbumForm.new create(:album)
       album_form.validate({
         comment_attributes: {

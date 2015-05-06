@@ -28,8 +28,27 @@ describe FormThis do
     end
 
 
+    it 'sets the parent' do
+      artist_form = ArtistForm.new build(:artist)
+      artist_form.albums << AlbumForm.new(build(:album))
+
+      result = []
+      artist_form.execute_for_all_forms(true) do |form, name, parent|
+        result << parent
+      end
+      expect(result.map(&:class)).to eq([NilClass, ArtistForm, AlbumForm, ArtistForm, AlbumForm])
+    end
+
+
     it 'sets the correct relation name' do
-      # TODO
+      artist_form = ArtistForm.new build(:artist)
+      artist_form.albums << AlbumForm.new(build(:album))
+
+      result = []
+      artist_form.execute_for_all_forms(true) do |form, name, parent|
+        result << name
+      end
+      expect(result).to eq([nil, :albums, :comment, :albums, :comment])
     end
   end
 end

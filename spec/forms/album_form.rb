@@ -26,23 +26,4 @@ class AlbumForm < BaseForm
   def set_defaults
     @record.comment = Comment.new if @record.comment.blank?
   end
-
-
-  def persist!
-    @record.transaction do
-      v = true
-
-      if !self.comment.attributes.all? { |k, v| k.to_s == '_destroy' || v.blank? }
-        v = v && self.comment.save
-      elsif self.comment._destroy
-        self.comment.record.destroy
-      else
-        @record.comment = nil
-      end
-
-      v = v && @record.save
-
-      next v
-    end
-  end
 end

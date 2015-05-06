@@ -261,6 +261,11 @@ Before a 1.0 release, we need to:
 - Make sure `self._property_has_many_with_attributes` is correct.
 - `grep -r TODO` and fix it all
 - Also test simple_form and perhaps some other form builders
+- Methods from AR to check/copy:
+  - ==, ===, <=>, hash, pp
+  - changed?, destroyed? and related
+  - more? How AR-compatible do we want to be?
+- validating unique doesn't work (only works with AR)
 
 Thing I'd like to do later (perhaps):
 

@@ -1,5 +1,4 @@
-class CollectionForm < FormThis::Base
-  # TODO: validate unique
+class CollectionForm < BaseForm
   property :name, validates: { presence: true }
 end
 

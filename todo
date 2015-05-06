@@ -1,3 +1,0 @@
-Methods from AR to check/copy:
-- ==, ===, <=>, hash, pp
-- changed? and related

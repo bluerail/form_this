@@ -20,6 +20,14 @@ module FormThis
   @@protect_form_for = true
 
 
+  # Validations are now on a Form object, and it's fairly easy to create a
+  # "corrupt" record with +SomeRecord.create(name: 'xxx')+.
+  # 
+  # This will "protect" +save+, +create+, and +update+ (and their !-variants)
+  mattr_accessor :protect_active_record
+  @@protect_active_record = true
+
+
   # Formtastic uses the name of the foreign key, which usually won't be the same
   # name as what we use in a form object.
   mattr_accessor :foreign_key_aliases
@@ -36,12 +44,7 @@ module FormThis
 
     # Store all properties & options
     class_attribute :defined_properties
-    self.defined_properties = {}
-
-
-    # Track which attributes can have the +_destroy+ parameter set to destroy it
-    #attr_accessor :_attributes_allow_destroy
-    #self._attributes_allow_destroy = {}
+    self.defined_properties = {}.with_indifferent_access
 
 
     # Delegate some methods to the record
@@ -224,6 +227,8 @@ module FormThis
       self.set_defaults  # TODO: Make it a callback
 
       # Make sure we never modify anything in the DB here
+      # TODO: Using a transaction here is a bit ugly, and causes (potentially
+      # confusing) BEGIN/ROLLBACK messages in the log
       @record.transaction do
         # TODO: Allow attributes which aren't in the record
         self.attributes.each { |k, v| attrs[k] = @record.send k }
@@ -316,14 +321,17 @@ module FormThis
     # Execute the code in +&block+ for +self+ and all nested forms.
     # Parameters passed are the form object and the name of the relation
     def execute_for_all_forms including_self=true, &block
-      block.call self, false if including_self
+      block.call self, nil if including_self
 
       self.attributes.each do |name, v|
         if self.is_form_this? v
-          block.call v, name
-          v.execute_for_all_forms(false, &block)
+          block.call v, name, self
+          v.execute_for_all_forms false, &block
         elsif self.is_nested? v
-          v.each { |n| n.execute_for_all_forms(true, &block) }
+          v.each do |nested_form|
+            block.call nested_form, name, self
+            nested_form.execute_for_all_forms false, &block
+          end
         end
       end
     end
@@ -332,6 +340,10 @@ module FormThis
     # Copy the data from the form class to the record; this does *not* persist
     # anything to the database, that is done by +persist!+.
     def update_record
+      self.execute_for_all_forms(false) do |form|
+        form.update_record
+      end
+
       self.attributes.each do |name, v|
         next if self.is_nested?(v) || self.is_form_this?(v)
         next if name.to_sym == :_destroy
@@ -344,7 +356,27 @@ module FormThis
     # +update_record+ before calling this.
     # This *only* persists +@record+, and *not* nested forms.
     def persist!
-      @record.save
+      @record.transaction do
+        success = true
+
+        self.execute_for_all_forms(false) do |form, name, parent|
+          # TODO: Allow symbols, and a shortcut for REJECT_ALL_BLANK_PROC
+          if form._destroy
+            success = success && form.record.destroy
+          elsif name && parent.defined_properties[name][:reject_if].present? && parent.defined_properties[name][:reject_if].call(form.attributes)
+            parent.send "#{name}=", nil
+            parent.record.send "#{name}=", nil
+            next
+          else
+            success = success && form.record.save
+          end
+        end
+
+        success = success && @record.save
+
+        raise ActiveRecord::Rollback unless success
+        next success
+      end
     end
 
 
@@ -373,7 +405,6 @@ module FormThis
         raise TypeError, "Can't find a `#{type}' record from `#{record}'"
       end
     end
-
 
     private
 
@@ -454,11 +485,15 @@ module FormThis
           end.include? false
         end
       end
+
+
+    # We always have a _destroy property
+    self.property :_destroy, type: Boolean
   end
 end
 
 
-# Patch +form_for+ for the +FormThis.protect_form_for+ option
+# Patch +form_for+ for the +FormThis.protect_form_for+ option.
 if defined? ActionView
   module ActionView
     module Helpers
@@ -487,6 +522,29 @@ if defined? ActionView
     end
   end
 end
+
+# Patch ActiveRecord for the +FormThis.protect_active_record+ option.
+#module ActiveRecord
+#  module Persistence
+#    module ClassMethods
+#      alias __original_create__ create
+#      alias __original_save__ save
+#      alias __original_update__ update
+#
+#      def save(*)
+#        super
+#      end
+#
+#      def update(*)
+#        super
+#      end
+#
+#      def create(*)
+#        super
+#      end
+#    end
+#  end
+#end
 
 
 # Copyright © 2014-2015 LICO Innovations
