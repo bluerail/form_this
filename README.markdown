@@ -266,6 +266,8 @@ Before a 1.0 release, we need to:
   - changed?, destroyed? and related
   - more? How AR-compatible do we want to be?
 - validating unique doesn't work (only works with AR)
+- Test with strange properties which don't correspond to the record; show
+  meaningfull errors here
 
 Thing I'd like to do later (perhaps):
 

@@ -141,7 +141,7 @@ module FormThis
     def self.properties *names, **names_with_opts
       params = {}
       names_with_opts.each do |name, v|
-        case k.to_sym
+        case name.to_sym
           when :type
             params[:type] = v
           when :validates
